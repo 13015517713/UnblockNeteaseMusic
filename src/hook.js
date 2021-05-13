@@ -191,21 +191,24 @@ hook.request.after = ctx => {
 			// songId = netease.param.ids[0]
 			copyId = netease.param.ids   	// 下面解析出来songid
 			// 需要判断id是否有效
-			songId = netease.web ? 0 : parseInt(((Array.isArray(copyId) ? 
+			if (typeof(copyId) != "undefined"){
+				songId = netease.web ? 0 : parseInt(((Array.isArray(copyId) ? 
 				copyId : JSON.parse(copyId))[0] || 0).toString())
-			// console.log(songId)  // songId是个字符串不是数组
-			if (songId){
-				songinfo = find(songId)
-				.then(info => {
-					meta = info
-					console.log(meta.keyword)
-					fs.appendFile(__dirname+'/../history_songs.csv', meta.keyword + '\r\n', error => {
-						if (error){
-							console.log('Info of song write to file error.')
-						}
+				// console.log(songId)  // songId是个字符串不是数组
+				if (songId){
+					songinfo = find(songId)
+					.then(info => {
+						meta = info
+						console.log(meta.keyword)
+						fs.appendFile(__dirname+'/../history_songs.csv', meta.keyword + '\r\n', error => {
+							if (error){
+								console.log('Info of song write to file error.')
+							}
+						})
 					})
-				})
+				}
 			}
+			
 		})
 		.catch(error => error ? console.log(error, req.url) : null)
 	}
