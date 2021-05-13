@@ -1,9 +1,13 @@
+// 钩子函数。  操作前处理
 const cache = require('./cache')
 const parse = require('url').parse
 const crypto = require('./crypto')
 const request = require('./request')
 const match = require('./provider/match')
 const querystring = require('querystring')
+const find = require('./provider/find')
+const fs = require('fs')
+const path = require('path')
 
 const hook = {
 	request: {
@@ -74,7 +78,7 @@ const domainList = [
 	'look.163.com',
 	'y.163.com',
 ]
-
+// 请求发送前处理下
 hook.request.before = ctx => {
 	const {req} = ctx
 	req.url = (req.url.startsWith('http://') ? '' : (req.socket.encrypted ? 'https:' : 'http:') + '//' + (domainList.some(domain => (req.headers.host || '').endsWith(domain)) ? req.headers.host : null)) + req.url
@@ -101,7 +105,7 @@ hook.request.before = ctx => {
 					data = crypto.eapi.decrypt(Buffer.from(body.slice(7, body.length - netease.pad.length), 'hex')).toString().split('-36cd479b6b5-')
 					netease.path = data[0]
 					netease.param = JSON.parse(data[1])
-				}
+				}  // 对接收到客户端的请求解密
 				netease.path = netease.path.replace(/\/\d*$/, '')
 				ctx.netease = netease
 				// console.log(netease.path, netease.param)
@@ -139,9 +143,12 @@ hook.request.before = ctx => {
 
 hook.request.after = ctx => {
 	const {req, proxyRes, netease, package} = ctx
+
+	// 这里加一个记录历史的模块，逻辑上也要在这里加
 	if (req.headers.host === 'tyst.migu.cn' && proxyRes.headers['content-range'] && proxyRes.statusCode === 200) proxyRes.statusCode = 206
 	if (netease && hook.target.path.has(netease.path) && proxyRes.statusCode == 200) {
 		return request.read(proxyRes, true)
+		// 返回空信息
 		.then(buffer => buffer.length ? proxyRes.body = buffer : Promise.reject())
 		.then(buffer => {
 			const patch = string => string.replace(/([^\\]"\s*:\s*)(\d{16,})(\s*[}|,])/g, '$1"$2L"$3') // for js precision
@@ -153,11 +160,11 @@ hook.request.after = ctx => {
 				netease.encrypted = true
 				netease.jsonBody = JSON.parse(patch(crypto.eapi.decrypt(buffer).toString()))
 			}
-
+			// 加载失败
 			if (new Set([401, 512]).has(netease.jsonBody.code) && !netease.web) {
 				if (netease.path.includes('manipulate')) return tryCollect(ctx)
 				else if (netease.path == '/api/song/like') return tryLike(ctx)
-			}
+			} // 请求之后开始重新匹配
 			else if (netease.path.includes('url')) return tryMatch(ctx)
 		})
 		.then(() => {
@@ -179,6 +186,26 @@ hook.request.after = ctx => {
 			let body = JSON.stringify(netease.jsonBody, inject)
 			body = body.replace(/([^\\]"\s*:\s*)"(\d{16,})L"(\s*[}|,])/g, '$1$2$3') // for js precision
 			proxyRes.body = (netease.encrypted ? crypto.eapi.encrypt(Buffer.from(body)) : body)
+		})
+		.then(buffer => {
+			// songId = netease.param.ids[0]
+			copyId = netease.param.ids   	// 下面解析出来songid
+			// 需要判断id是否有效
+			songId = netease.web ? 0 : parseInt(((Array.isArray(copyId) ? 
+				copyId : JSON.parse(copyId))[0] || 0).toString())
+			// console.log(songId)  // songId是个字符串不是数组
+			if (songId){
+				songinfo = find(songId)
+				.then(info => {
+					meta = info
+					console.log(meta.keyword)
+					fs.appendFile(__dirname+'/../history_songs.csv', meta.keyword + '\r\n', error => {
+						if (error){
+							console.log('Info of song write to file error.')
+						}
+					})
+				})
+			}
 		})
 		.catch(error => error ? console.log(error, req.url) : null)
 	}
@@ -227,6 +254,7 @@ const pretendPlay = ctx => {
 	const {req, netease} = ctx
 	const turn = 'http://music.163.com/api/song/enhance/player/url'
 	let query = null
+	// 
 	if (netease.forward) {
 		const {id, br} = netease.param
 		netease.param = {ids: `["${id}"]`, br}

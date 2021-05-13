@@ -15,10 +15,14 @@ const config = require('./cli.js')
 .option(['-h', '--help'], {action: 'help'})
 .parse(process.argv)
 
+// console.log(config)
+
+// 初始化client完成
+
 global.address = config.address
 config.port = (config.port || '8080').split(':').map(string => parseInt(string))
 const invalid = value => (isNaN(value) || value < 1 || value > 65535)
-if (config.port.some(invalid)) {
+if (config.port.some(invalid)) {  // 检测数据元素满不满足要求
 	console.log('Port must be a number higher than 0 and lower than 65535.')
 	process.exit(1)
 }
@@ -52,9 +56,12 @@ if (config.token && !/\S+:\S+/.test(config.token)) {
 	process.exit(1)
 }
 
-const parse = require('url').parse
+const parse = require('url').parse  // url包   
+// 一个url字符串解析成url字符串
 const hook = require('./hook')
-const server = require('./server')
+// console.log(hook)
+const server = require('./server')  // server对象. 包含了http和https
+// console.log(server)
 const random = array => array[Math.floor(Math.random() * array.length)]
 const target = Array.from(hook.target.host)
 
@@ -62,25 +69,33 @@ global.port = config.port
 global.proxy = config.proxyUrl ? parse(config.proxyUrl) : null
 global.hosts = target.reduce((result, host) => Object.assign(result, {[host]: config.forceHost}), {})
 server.whitelist = ['://[\\w.]*music\\.126\\.net', '://[\\w.]*vod\\.126\\.net']
-if (config.strict) server.blacklist.push('.*')
+if (config.strict) server.blacklist.push('.*') // 严格模式，只放行网易云域名
 server.authentication = config.token || null
 global.endpoint = config.endpoint
 if (config.endpoint) server.whitelist.push(escape(config.endpoint))
 
 hosts['music.httpdns.c.163.com'] = random(['59.111.181.35', '59.111.181.38'])
 hosts['httpdns.n.netease.com'] = random(['59.111.179.213', '59.111.179.214'])
-
-const dns = host => new Promise((resolve, reject) => require('dns').lookup(host, {all: true}, (error, records) => error ? reject(error) : resolve(records.map(record => record.address))))
+// console.log(Promise)
+// dns相当于一个函数，传入host执行成功和失败都有对应的处理回调
+const dns = host => 
+new Promise(
+	(resolve, reject) => require('dns').
+lookup(host, {all: true},(error, records) => error ? reject(error)
+: resolve(records.map(record => record.address)))
+)
 const httpdns = host => require('./request')('POST', 'https://music.httpdns.c.163.com/d', {}, host).then(response => response.json()).then(jsonBody => jsonBody.dns.reduce((result, domain) => result.concat(domain.ips), []))
 const httpdns2 = host => require('./request')('GET', 'https://httpdns.n.netease.com/httpdns/v2/d?domain=' + host).then(response => response.json()).then(jsonBody => Object.keys(jsonBody.data).map(key => jsonBody.data[key]).reduce((result, value) => result.concat(value.ip || []), []))
-
+// promise不包装在函数中，就直接执行.
 Promise.all([httpdns, httpdns2].map(query => query(target.join(','))).concat(target.map(dns)))
 .then(result => {
 	const {host} = hook.target
 	result.forEach(array => array.forEach(host.add, host))
 	server.whitelist = server.whitelist.concat(Array.from(host).map(escape))
 	const log = type => console.log(`${['HTTP', 'HTTPS'][type]} Server running @ http://${address || '0.0.0.0'}:${port[type]}`)
+	// 监听器只触发一次
 	if (port[0]) server.http.listen(port[0], address).once('listening', () => log(0))
 	if (port[1]) server.https.listen(port[1], address).once('listening', () => log(1))
 })
+// .catch捕获异常
 .catch(error => console.log(error))

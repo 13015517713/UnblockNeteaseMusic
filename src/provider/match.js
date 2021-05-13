@@ -1,6 +1,6 @@
 const find = require('./find')
 const request = require('../request')
-
+// 所有服务提供商
 const provider = {
 	netease: require('./netease'),
 	qq: require('./qq'),
@@ -12,13 +12,13 @@ const provider = {
 	joox: require('./joox'),
 	youtube: require('./youtube')
 }
-
+// id是歌曲id吗
 const match = (id, source) => {
 	let meta = {}
 	const candidate = (source || global.source || ['qq', 'kuwo', 'migu']).filter(name => name in provider)
 	return find(id)
 	.then(info => {
-		meta = info
+		meta = info   // 每一个都尝试下。   按照qq,kuwo,migu的顺序
 		return Promise.all(candidate.map(name => provider[name].check(info).catch(() => {})))
 	})
 	.then(urls => {

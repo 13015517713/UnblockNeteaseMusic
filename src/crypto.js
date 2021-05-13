@@ -3,10 +3,10 @@
 const crypto = require('crypto')
 const parse = require('url').parse
 const bodyify = require('querystring').stringify
-
+// 加密
 const eapiKey = 'e82ckenh8dichen8'
 const linuxapiKey = 'rFgB&h#%2?^eDg:Q'
-
+// 加密解密都有
 const decrypt = (buffer, key) => {
 	const decipher = crypto.createDecipheriv('aes-128-ecb', key, '')
 	return Buffer.concat([decipher.update(buffer), decipher.final()])

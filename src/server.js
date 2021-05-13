@@ -7,6 +7,7 @@ const sni = require('./sni')
 const hook = require('./hook')
 const request = require('./request')
 
+// proxy存储服务端关键的回调
 const proxy = {
 	core: {
 		mitm: (req, res) => {
@@ -23,6 +24,8 @@ const proxy = {
 				`)
 			}
 			else {
+				// 本身的逻辑应该是从客户端发过来的，我发到别的地方去。
+				// 非Pac模式处理本地客户端的请求
 				const ctx = {res, req}
 				Promise.resolve()
 				.then(() => proxy.protect(ctx))
@@ -30,9 +33,9 @@ const proxy = {
 				.then(() => hook.request.before(ctx))
 				.then(() => proxy.filter(ctx))
 				.then(() => proxy.log(ctx))
-				.then(() => proxy.mitm.request(ctx))
+				.then(() => proxy.mitm.request(ctx)) // 这个发过去吗
 				.then(() => hook.request.after(ctx))
-				.then(() => proxy.mitm.response(ctx))
+				.then(() => proxy.mitm.response(ctx)) // 这是响应吗
 				.catch(() => proxy.mitm.close(ctx))
 			}
 		},
@@ -156,13 +159,14 @@ const proxy = {
 		}
 	}
 }
-
+// 用来https，公钥密钥等等
 const options = {
 	key: fs.readFileSync(path.join(__dirname, '..', 'server.key')),
 	cert: fs.readFileSync(path.join(__dirname, '..', 'server.crt'))
 }
 
 const server = {
+	// 创建服务端
 	http: require('http').createServer().on('request', proxy.core.mitm).on('connect', proxy.core.tunnel),
 	https: require('https').createServer(options).on('request', proxy.core.mitm).on('connect', proxy.core.tunnel)
 }
